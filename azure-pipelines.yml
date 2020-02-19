@@ -74,6 +74,19 @@ stages:
     - publish: '$(Build.ArtifactStagingDirectory)'
       artifact: drop
 
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'VS Ent-MPN- ODIAZ(972e401d-226e-48c7-a463-6d562c39edda)'
+        scriptType: 'batch'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az group create --name tailspin-space-game-rg
+          az appservice plan create --name tailspin-space-game-asp --resource-group tailspin-space-game-rg sku B1
+          az webapp create --name tailspin-space-game-web-dev-odiaz --resource-group tailspin-space-game-rg --plan tailspin-space-game-asp
+          az webapp create --name tailspin-space-game-web-test-odiaz --resource-group tailspin-space-game-rg --plan tailspin-space-game-asp
+          az webapp create --name tailspin-space-game-web-staging-odiaz --resource-group tailspin-space-game-rg --plan tailspin-space-game-asp          
+          az webapp list   --resource-group tailspin-space-game-rg   --query "[].{hostName: defaultHostName, state: state}"   --output table
+
 - stage: 'Dev'
   displayName: 'Deploy the web application'
   dependsOn: Build
