@@ -66,6 +66,20 @@ stages:
     - publish: '$(Build.ArtifactStagingDirectory)'
       artifact: drop
 
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'VS Ent-MPN- ODIAZ(972e401d-226e-48c7-a463-6d562c39edda)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az group create --name tailspin-space-game-rg --location centralus
+          az appservice plan create --name tailspin-space-game-asp --resource-group tailspin-space-game-rg --sku B1
+          az webapp create --name tailspin-space-game-web-dev-odiaz --resource-group tailspin-space-game-rg --plan tailspin-space-game-asp
+          az webapp create --name tailspin-space-game-web-test-odiaz --resource-group tailspin-space-game-rg --plan tailspin-space-game-asp
+          az webapp create --name tailspin-space-game-web-staging-odiaz --resource-group tailspin-space-game-rg --plan tailspin-space-game-asp          
+          az webapp list   --resource-group tailspin-space-game-rg   --query "[].{hostName: defaultHostName, state: state}"   --output table
+
+
 - stage: 'Dev'
   displayName: 'Deploy to the dev environment'
   dependsOn: Build
@@ -86,8 +100,10 @@ stages:
             displayName: 'Azure App Service Deploy: website'
             inputs:
               azureSubscription: 'Resource Manager - Tailspin - Space Game'
+              #appType: 'webApp'
               appName: '$(WebAppNameDev)'
               package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
+              deploymentMethod: 'auto'
 
 - stage: 'Test'
   displayName: 'Deploy to the test environment'
@@ -109,8 +125,10 @@ stages:
             displayName: 'Azure App Service Deploy: website'
             inputs:
               azureSubscription: 'Resource Manager - Tailspin - Space Game'
+              appType: 'webApp'
               appName: '$(WebAppNameTest)'
               package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
+              deploymentMethod: 'auto'
   - job: RunUITests
     dependsOn: Deploy
     displayName: 'Run UI tests'
@@ -157,5 +175,7 @@ stages:
             displayName: 'Azure App Service Deploy: website'
             inputs:
               azureSubscription: 'Resource Manager - Tailspin - Space Game'
+              appType: 'webApp'
               appName: '$(WebAppNameStaging)'
               package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
+              deploymentMethod: 'auto'
