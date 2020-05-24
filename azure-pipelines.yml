@@ -73,7 +73,7 @@ stages:
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          az group create --name tailspin-space-game-rg --location centralus
+          az group create --name tailspin-space-game-rg --location eastus
           az appservice plan create --name tailspin-space-game-asp --resource-group tailspin-space-game-rg --sku B1
           az webapp create --name $(WebAppNameDev) --resource-group tailspin-space-game-rg --plan tailspin-space-game-asp
           az webapp create --name $(WebAppNameTest) --resource-group tailspin-space-game-rg --plan tailspin-space-game-asp
