@@ -15,9 +15,12 @@ stages:
       demands:
         - npm
 
-    variables:
-      wwwrootDir: 'Tailspin.SpaceGame.Web/wwwroot'
-      dotnetSdkVersion: '3.1.100'
+      variables:
+      - name: wwwrootDir
+        value: 'Tailspin.SpaceGame.Web/wwwroot'
+      - name: dotnetSdkVersion
+        value: '3.1.100'
+      - group: Release
 
     steps:
     - task: UseDotNet@2
@@ -64,30 +67,52 @@ stages:
 
     - publish: '$(Build.ArtifactStagingDirectory)'
       artifact: drop
+      
+    - task: AzureCLI@2
+      displayName:
+      inputs:
+        azureSubscription: 'VS Ent-MPN- ODIAZ(972e401d-226e-48c7-a463-6d562c39edda)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az group create --name tailspin-space-game-rg --location eastus
+          az appservice plan create --name tailspin-space-game-asp --resource-group tailspin-space-game-rg --sku B1
+          az webapp create --name "$(WebAppNameDev)" --resource-group tailspin-space-game-rg --plan tailspin-space-game-asp
+          az webapp create --name "$(WebAppNameTest)" --resource-group tailspin-space-game-rg --plan tailspin-space-game-asp
+          az webapp create --name "$(WebAppNameStaging)" --resource-group tailspin-space-game-rg --plan tailspin-space-game-asp          
+          az webapp config connection-string set --name "$(WebAppNameDev)" --resource-group tailspin-space-game-rg --settings "DefaultConnection=$DB_CONNECTION_STRING" --connection-string-type SQLAzure
+          az webapp config connection-string set --name "$(WebAppNameStaging)" --resource-group tailspin-space-game-rg --settings "DefaultConnection=$DB_CONNECTION_STRING" --connection-string-type SQLAzure
+          az webapp config connection-string set --name "$(WebAppNameTest)" --resource-group tailspin-space-game-rg --settings "DefaultConnection=$DB_CONNECTION_STRING" --connection-string-type SQLAzure
+          az webapp list   --resource-group tailspin-space-game-rg   --query "[].{hostName: defaultHostName, state: state}"   --output table
+          az webapp deployment slot create --name "$(WebAppNameStaging)" --resource-group tailspin-space-game-rg --slot swap
+
 
 - stage: 'Dev'
   displayName: 'Deploy to the dev environment'
   dependsOn: Build
   jobs:
-  - deployment: Deploy
-    pool:
-      vmImage: 'ubuntu-16.04'
-    environment: dev
-    variables:
-    - group: Release
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - download: current
-            artifact: drop
-          - task: AzureWebApp@1
-            displayName: 'Azure App Service Deploy: website'
-            inputs:
-              azureSubscription: 'Resource Manager - Tailspin - Space Game'
-              appName: '$(WebAppNameDev)'
-              package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
-
+    - deployment: Deploy
+      pool:
+        vmImage: 'ubuntu-16.04'
+      environment: dev
+      variables:
+      - group: Release
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+            - download: current
+              artifact: drop
+            - task: AzureWebApp@1
+              displayName: 'Azure App Service Deploy: website'
+              inputs:
+  
+                azureSubscription: 'VS Ent-MPN- ODIAZ(972e401d-226e-48c7-a463-6d562c39edda)'
+                appType: 'webApp'
+                appName: '$(WebAppNameDev)'
+                package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
+                deploymentMethod: 'auto'
+  
 - stage: 'Test'
   displayName: 'Deploy to the test environment'
   dependsOn: Dev
@@ -107,9 +132,12 @@ stages:
           - task: AzureWebApp@1
             displayName: 'Azure App Service Deploy: website'
             inputs:
-              azureSubscription: 'Resource Manager - Tailspin - Space Game'
+
+              azureSubscription: 'VS Ent-MPN- ODIAZ(972e401d-226e-48c7-a463-6d562c39edda)'
+              appType: 'webApp'
               appName: '$(WebAppNameTest)'
               package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
+              deploymentMethod: 'auto'
 
 - stage: 'Staging'
   displayName: 'Deploy to the staging environment'
@@ -131,5 +159,17 @@ stages:
             displayName: 'Azure App Service Deploy: website'
             inputs:
               azureSubscription: 'Resource Manager - Tailspin - Space Game'
+              deployToSlotOrASE: 'true'
+              resourceGroupName: 'tailspin-space-game-rg'
+              slotName: 'swap'
               appName: '$(WebAppNameStaging)'
               package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
+          - task: AzureAppServiceManage@0
+            displayName: 'Swap deployment slots'
+            inputs:
+              azureSubscription: 'Resource Manager - Tailspin - Space Game'
+              resourceGroupName: 'tailspin-space-game-rg'
+              webAppName: '$(WebAppNameStaging)'
+              sourceSlot: 'swap'
+              targetSlot: 'production'
+              action: 'Swap Slots'
